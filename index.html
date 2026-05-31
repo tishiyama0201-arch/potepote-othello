@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ぽてぽてオセロ</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Hiragino Maru Gothic Pro", "BIZ UDPGothic", sans-serif;
+      background: linear-gradient(160deg, #1a3a0a 0%, #2d5016 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 12px 8px 24px;
+    }
+
+    #game {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* ===== タイトル ===== */
+    #title {
+      color: #A5D6A7;
+      font-size: 1.2rem;
+      letter-spacing: 4px;
+      text-align: center;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+
+    /* ===== ぽてぽてエリア ===== */
+    #potepote-area {
+      background: rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+
+    #potepote-chara {
+      width: 70px;
+      height: 70px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.5rem;
+      filter: drop-shadow(0 3px 6px rgba(0,0,0,0.4));
+      transition: transform 0.3s ease;
+    }
+    #potepote-chara img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      image-rendering: pixelated;
+    }
+    #potepote-chara.bounce {
+      animation: charabounce 0.4s ease infinite alternate;
+    }
+    @keyframes charabounce {
+      from { transform: translateY(0); }
+      to   { transform: translateY(-8px); }
+    }
+
+    #potepote-msg {
+      flex: 1;
+    }
+    #potepote-name {
+      font-size: 0.8rem;
+      color: #A5D6A7;
+      letter-spacing: 2px;
+      margin-bottom: 4px;
+    }
+    #potepote-speech {
+      font-size: 0.95rem;
+      color: #fff;
+      background: rgba(0,0,0,0.3);
+      border-radius: 12px;
+      padding: 8px 12px;
+      line-height: 1.5;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+    }
+
+    /* ===== スコアボード ===== */
+    #scoreboard {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .score-box {
+      flex: 1;
+      background: rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 10px;
+      text-align: center;
+      border: 2px solid transparent;
+      transition: border-color 0.3s, background 0.3s;
+      backdrop-filter: blur(4px);
+    }
+    .score-box.active {
+      border-color: #FFD54F;
+      background: rgba(255, 213, 79, 0.15);
+    }
+    .score-label {
+      font-size: 0.72rem;
+      color: #A5D6A7;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    .score-piece {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      margin: 0 auto 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    }
+    .score-piece.player-piece { background: #fff; }
+    .score-piece.cpu-piece    { background: #2d2d2d; }
+    .score-num {
+      font-size: 1.6rem;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+
+    .vs-label {
+      font-size: 0.85rem;
+      color: #A5D6A7;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    /* ===== ボード ===== */
+    #board-wrap {
+      background: #3B2507;
+      border-radius: 12px;
+      padding: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      width: 100%;
+    }
+
+    #board {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 3px;
+      background: #2d5016;
+      border-radius: 6px;
+      padding: 3px;
+    }
+
+    .cell {
+      aspect-ratio: 1;
+      background: #3d7a20;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.15s;
+    }
+    .cell:hover { background: #4a8f28; }
+    .cell.valid-move::after {
+      content: '';
+      width: 30%;
+      height: 30%;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.35);
+      position: absolute;
+    }
+
+    /* ===== 石 ===== */
+    .piece {
+      width: 82%;
+      height: 82%;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+      transition: transform 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .piece img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      image-rendering: pixelated;
+    }
+    .piece.player-piece { background: #f0f0f0; }
+    .piece.cpu-piece    { background: #2a2a2a; }
+    .piece.placed {
+      animation: placeAnim 0.25s ease;
+    }
+    .piece.flipped {
+      animation: flipAnim 0.3s ease;
+    }
+    @keyframes placeAnim {
+      0%   { transform: scale(0); }
+      70%  { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+    @keyframes flipAnim {
+      0%   { transform: scaleX(1); }
+      50%  { transform: scaleX(0); }
+      100% { transform: scaleX(1); }
+    }
+
+    /* ===== ゲームオーバー画面 ===== */
+    #gameover {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    #gameover.show { display: flex; }
+
+    #gameover-box {
+      background: linear-gradient(160deg, #2d5016, #1a3a0a);
+      border: 2px solid #A5D6A7;
+      border-radius: 24px;
+      padding: 32px 28px;
+      text-align: center;
+      max-width: 300px;
+      width: 90%;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+      animation: popIn 0.4s ease;
+    }
+    @keyframes popIn {
+      from { transform: scale(0.7); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+    #gameover-chara {
+      font-size: 5rem;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #gameover-chara img {
+      width: 140px;
+      height: 140px;
+      object-fit: contain;
+      image-rendering: pixelated;
+      animation: goCharaPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    @keyframes goCharaPop {
+      from { transform: scale(0) rotate(-15deg); opacity: 0; }
+      to   { transform: scale(1) rotate(0deg);   opacity: 1; }
+    }
+    #gameover-title {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: #FFD54F;
+      margin-bottom: 8px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+    #gameover-score {
+      font-size: 1rem;
+      color: #A5D6A7;
+      margin-bottom: 20px;
+    }
+    #retry-btn {
+      background: linear-gradient(135deg, #A5D6A7, #4CAF50);
+      color: #1B5E20;
+      border: none;
+      border-radius: 50px;
+      padding: 14px 36px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      letter-spacing: 2px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+      font-family: inherit;
+      transition: transform 0.15s;
+    }
+    #retry-btn:active { transform: scale(0.95); }
+
+    /* ===== 新しいゲームボタン ===== */
+    #newgame-btn {
+      background: rgba(255,255,255,0.1);
+      color: #A5D6A7;
+      border: 1px solid #A5D6A7;
+      border-radius: 50px;
+      padding: 10px 28px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      letter-spacing: 2px;
+      font-family: inherit;
+      transition: background 0.2s;
+    }
+    #newgame-btn:hover { background: rgba(165,214,167,0.15); }
+
+    /* ===== レベル選択 ===== */
+    #level-select {
+      display: flex;
+      gap: 6px;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .lv-btn {
+      flex: 1;
+      padding: 8px 2px;
+      border: 2px solid rgba(165,214,167,0.3);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.07);
+      color: #A5D6A7;
+      font-size: 0.65rem;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+      line-height: 1.4;
+    }
+    .lv-btn:active { transform: scale(0.93); }
+    .lv-btn.selected {
+      background: rgba(255,213,79,0.25);
+      border-color: #FFD54F;
+      color: #FFD54F;
+      font-weight: bold;
+    }
+    .lv-icon { font-size: 1.1rem; display: block; }
+
+    /* ===== イタズラ ON/OFF ===== */
+    #itazura-select {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+      justify-content: center;
+    }
+    .itazura-btn {
+      flex: 1;
+      padding: 9px 4px;
+      border: 2px solid rgba(165,214,167,0.3);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.07);
+      color: #A5D6A7;
+      font-size: 0.78rem;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+      letter-spacing: 1px;
+    }
+    .itazura-btn:active { transform: scale(0.93); }
+    .itazura-btn.selected {
+      background: rgba(255,107,107,0.25);
+      border-color: #FF7043;
+      color: #FF7043;
+      font-weight: bold;
+    }
+    .itazura-btn.selected-off {
+      background: rgba(165,214,167,0.15);
+      border-color: #A5D6A7;
+      color: #A5D6A7;
+      font-weight: bold;
+    }
+
+    /* ===== ブロックされたマス ===== */
+    .cell.blocked {
+      position: relative;
+      cursor: not-allowed;
+    }
+    .cell.blocked::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      cursor: not-allowed;
+    }
+    .block-chara {
+      position: absolute;
+      inset: 0;
+      z-index: 15;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: blockBounce 0.5s ease infinite alternate;
+      pointer-events: none;
+    }
+    .block-chara img {
+      width: 90%;
+      height: 90%;
+      object-fit: contain;
+      image-rendering: pixelated;
+    }
+    @keyframes blockBounce {
+      from { transform: translateY(0px) rotate(-5deg); }
+      to   { transform: translateY(-4px) rotate(5deg); }
+    }
+
+    /* ===== 駒を盗まれたアニメーション ===== */
+    @keyframes stolenFlash {
+      0%   { transform: scale(1)   rotate(0deg);   filter: brightness(1); }
+      25%  { transform: scale(1.3) rotate(-15deg); filter: brightness(2) hue-rotate(120deg); }
+      50%  { transform: scale(0.8) rotate(15deg);  filter: brightness(2) hue-rotate(240deg); }
+      75%  { transform: scale(1.2) rotate(-10deg); filter: brightness(1.5); }
+      100% { transform: scale(1)   rotate(0deg);   filter: brightness(1); }
+    }
+    .piece.stolen-anim {
+      animation: stolenFlash 0.6s ease forwards;
+    }
+
+    /* ===== ZZZ（ねむり） ===== */
+    #zzz-container {
+      position: relative;
+      display: inline-block;
+    }
+    .zzz-float {
+      position: absolute;
+      font-size: 1rem;
+      font-weight: bold;
+      color: #B0BEC5;
+      pointer-events: none;
+      animation: zzzFloat 2s ease-in-out infinite;
+    }
+    .zzz-float:nth-child(1) { top: -8px;  right: -8px;  font-size: 0.7rem; animation-delay: 0s;    }
+    .zzz-float:nth-child(2) { top: -18px; right: -16px; font-size: 0.9rem; animation-delay: 0.6s;  }
+    .zzz-float:nth-child(3) { top: -28px; right: -24px; font-size: 1.1rem; animation-delay: 1.2s;  }
+    @keyframes zzzFloat {
+      0%   { opacity: 0;   transform: translate(0, 0) scale(0.6); }
+      40%  { opacity: 1;   transform: translate(4px, -10px) scale(1); }
+      100% { opacity: 0;   transform: translate(8px, -20px) scale(0.8); }
+    }
+    #potepote-chara.sleeping {
+      animation: sleepSway 2s ease-in-out infinite;
+    }
+    @keyframes sleepSway {
+      0%, 100% { transform: rotate(-5deg); }
+      50%       { transform: rotate(5deg); }
+    }
+
+    /* ===== 考え中ドット ===== */
+    .thinking-dots::after {
+      content: '●●●';
+      animation: thinkingAnim 1s ease infinite;
+      letter-spacing: 3px;
+      font-size: 0.7rem;
+    }
+    @keyframes thinkingAnim {
+      0%,100% { opacity: 0.3; }
+      50%      { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+<div id="game">
+
+  <!-- タイトル -->
+  <div id="title">🌿 ぽてぽてオセロ 🌿</div>
+
+  <!-- イタズラ選択 -->
+  <div id="itazura-select">
+    <button class="itazura-btn selected" id="itazura-on"  onclick="setItazura(true)">🐾 イタズラ あり</button>
+    <button class="itazura-btn"          id="itazura-off" onclick="setItazura(false)">😇 イタズラ なし</button>
+  </div>
+
+  <!-- レベル選択 -->
+  <div id="level-select">
+    <button class="lv-btn" onclick="setLevel(1)"><span class="lv-icon">🍀</span>甘口</button>
+    <button class="lv-btn" onclick="setLevel(2)"><span class="lv-icon">🌿</span>中辛</button>
+    <button class="lv-btn" onclick="setLevel(3)"><span class="lv-icon">🌶️</span>辛口</button>
+  </div>
+
+  <!-- ぽてぽてエリア -->
+  <div id="potepote-area">
+    <div id="potepote-chara">
+      <div id="zzz-container">
+        <span id="potepote-emoji">🐾</span>
+        <img id="potepote-img" src="" alt="ぽてぽて" style="display:none;" />
+      </div>
+    </div>
+    <div id="potepote-msg">
+      <div id="potepote-name">ぽてぽて</div>
+      <div id="potepote-speech">よろしくね！まずおいてみて🌿</div>
+    </div>
+  </div>
+
+  <!-- スコアボード -->
+  <div id="scoreboard">
+    <div class="score-box" id="score-player">
+      <div class="score-label">あなた</div>
+      <div class="score-piece player-piece"></div>
+      <div class="score-num" id="num-player">2</div>
+    </div>
+    <div class="vs-label">VS</div>
+    <div class="score-box" id="score-cpu">
+      <div class="score-label">ぽてぽて</div>
+      <div class="score-piece cpu-piece"></div>
+      <div class="score-num" id="num-cpu">2</div>
+    </div>
+  </div>
+
+  <!-- ボード -->
+  <div id="board-wrap">
+    <div id="board"></div>
+  </div>
+
+  <!-- 新しいゲームボタン -->
+  <button id="newgame-btn" onclick="newGame()">🌱 新しいゲーム</button>
+
+</div>
+
+<!-- ゲームオーバー -->
+<div id="gameover">
+  <div id="gameover-box">
+    <div id="gameover-chara">🐾</div>
+    <div id="gameover-title">ゲームおわり！</div>
+    <div id="gameover-score"></div>
+    <button id="retry-btn" onclick="newGame()">もう一度あそぶ 🌿</button>
+  </div>
+</div>
+
+<script>
+  // ==================================================
+  // ★ 画像設定
+  // pieces/ フォルダに画像を入れたら true に変える
+  // ==================================================
+  const USE_IMAGES = true;
+
+  const PIECE_IMAGES = {
+    player:          'pieces/player.png',         // プレイヤーの石
+    cpu:             'pieces/potepote.png',        // ぽてぽての石
+    chara_normal:    'pieces/chara_normal.png',    // ぽてぽて通常顔
+    chara_thinking:  'pieces/chara_thinking.png',  // 考え中
+    chara_happy:     'pieces/chara_happy.png',     // 嬉しい
+    chara_sad:       'pieces/chara_sad.png',       // 悲しい
+    chara_sleeping:  'pieces/chara_sleeping.png',  // 寝てる（なければsadを使用）
+  };
+
+  // ぽてぽてのセリフ（状況別）
+  const SPEECHES = {
+    playerTurn: [
+      'どこに置く？じっくり考えてね🌿',
+      'うーん、ここはどう？',
+      'まだまだまけないよ🐾',
+      'いい手だなぁ…',
+    ],
+    thinking: ['うーん…考え中', 'どこにしようかな', 'ふむふむ…'],
+    afterMove: [
+      'えいっ！ここに置くよ🐾',
+      'ぽてぽて、ここかな！',
+      'うふふ、ここにするね🌿',
+      'よいしょ！',
+    ],
+    winning: [
+      'ぽてぽての勝ちかも！😊',
+      'このまま行くよ〜🐾',
+      'うれしいな！でも油断しないよ',
+    ],
+    losing: [
+      'うーん、追い上げるよ！',
+      'まだまだこれから🌿',
+      'がんばるぞ〜！',
+    ],
+    gameoverWin:  'やった！ぽてぽての勝ち！🎉',
+    gameoverLose: 'まけちゃった…またあそんでね😊',
+    gameoverDraw: 'ひきわけ！いい勝負だったね🌿',
+    noMove:       'あれ、おけるとこがないや…パスするね',
+    playerNoMove: 'おけるとこがないみたい…パスだよ！',
+  };
+
+  // ==================================================
+  // ゲーム定数
+  // ==================================================
+  const PLAYER = 1, CPU = 2;
+  const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+
+  // 重み行列（中級AI）
+  const WEIGHT = [
+    [120,-20, 20,  5,  5, 20,-20,120],
+    [-20,-40, -5, -5, -5, -5,-40,-20],
+    [ 20, -5, 15,  3,  3, 15, -5, 20],
+    [  5, -5,  3,  3,  3,  3, -5,  5],
+    [  5, -5,  3,  3,  3,  3, -5,  5],
+    [ 20, -5, 15,  3,  3, 15, -5, 20],
+    [-20,-40, -5, -5, -5, -5,-40,-20],
+    [120,-20, 20,  5,  5, 20,-20,120],
+  ];
+
+  // ==================================================
+  // イタズラ設定
+  // ==================================================
+  let itazuraEnabled = true;
+  let blockedCells = []; // 現在ブロック中のマス [{r, c}, ...]
+
+  function setItazura(enabled) {
+    itazuraEnabled = enabled;
+    document.getElementById('itazura-on').classList.toggle('selected', enabled);
+    document.getElementById('itazura-off').classList.toggle('selected-off', !enabled);
+    document.getElementById('itazura-on').classList.toggle('selected-off', false);
+    document.getElementById('itazura-off').classList.toggle('selected', false);
+    if (!enabled) removeBlock();
+    newGame();
+  }
+
+  // ブロックを置く（ランダムで10%の確率、プレイヤーのターン開始時に発動）
+  function tryItazura() {
+    if (!itazuraEnabled || isOver) return;
+    // 10%の確率でイタズラ発動
+    if (Math.random() < 0.10) {
+      const validMoves = getValidMoves(board, PLAYER);
+      if (validMoves.length <= 1) return; // 残り1手しかなければイタズラしない
+      // シャッフルして50%のマスをブロック（最低1マスは残す）
+      const shuffled = validMoves.sort(() => Math.random() - 0.5);
+      const blockCount = Math.max(1, Math.floor(shuffled.length * 0.5));
+      const leaveCount = shuffled.length - blockCount;
+      if (leaveCount < 1) return; // 全部塞ぐのは禁止
+      blockedCells = shuffled.slice(0, blockCount).map(([r, c]) => ({ r, c }));
+      setSpeech('えへへ、じゃまするよ〜🐾');
+      renderBoard();
+    }
+  }
+
+  // ブロックを解除する
+  function removeBlock() {
+    blockedCells = [];
+  }
+
+  // 駒を盗む（ランダムで10%の確率、プレイヤーのターン開始時に発動）
+  async function tryStealPieces() {
+    if (!itazuraEnabled || isOver) return;
+    if (Math.random() >= 0.10) return;
+
+    // プレイヤーの駒を全部集める
+    const playerCells = [];
+    for (let r = 0; r < 8; r++)
+      for (let c = 0; c < 8; c++)
+        if (board[r][c] === PLAYER) playerCells.push({ r, c });
+
+    if (playerCells.length < 2) return; // 駒が少なすぎたら何もしない
+
+    // シャッフルして最大3枚（全体の25%以下）を盗む
+    const shuffled = playerCells.sort(() => Math.random() - 0.5);
+    const stealCount = Math.min(3, Math.max(1, Math.floor(playerCells.length * 0.25)));
+    const targets = shuffled.slice(0, stealCount);
+
+    setSpeech('えへへ、ちょっともらうね〜🐾');
+    renderBoard();
+    await wait(400);
+
+    // アニメーション付きで1枚ずつ盗む
+    for (const { r, c } of targets) {
+      board[r][c] = CPU;
+      renderBoard();
+      // 盗んだマスの駒にアニメーションを付ける
+      const cells = document.querySelectorAll('.cell');
+      const idx = r * 8 + c;
+      const piece = cells[idx] ? cells[idx].querySelector('.piece') : null;
+      if (piece) {
+        piece.classList.add('stolen-anim');
+      }
+      await wait(300);
+    }
+
+    updateScore();
+    await wait(200);
+  }
+
+  // ==================================================
+  // レベル設定
+  // ==================================================
+  const LEVELS = [
+    { lv:1, name:'甘口', icon:'🍀', speech:'えへへ、やさしくするね〜🍀'       },
+    { lv:2, name:'中辛', icon:'🌿', speech:'よろしくね！じっくり考えるよ🌿'   },
+    { lv:3, name:'辛口', icon:'🌶️', speech:'まけないぞ！かかってきて🌶️'       },
+  ];
+  let currentLevel = 1;
+
+  function setLevel(lv) {
+    currentLevel = lv;
+    document.querySelectorAll('.lv-btn').forEach((btn, i) => {
+      btn.classList.toggle('selected', i+1 === lv);
+    });
+    const lvData = LEVELS[lv-1];
+    setSpeech(lvData.speech);
+    newGame();
+  }
+
+  // ==================================================
+  // 状態変数
+  // ==================================================
+  let board = [];
+  let turn = PLAYER;
+  let isOver = false;
+  let isThinking = false;
+
+  // ==================================================
+  // 初期化
+  // ==================================================
+  function newGame() {
+    board = Array.from({length:8}, () => Array(8).fill(0));
+    board[3][3] = CPU;    board[3][4] = PLAYER;
+    board[4][3] = PLAYER; board[4][4] = CPU;
+    turn = PLAYER;
+    isOver = false;
+    isThinking = false;
+    document.getElementById('gameover').classList.remove('show');
+    setSpeech('どこに置く？じっくり考えてね🌿');
+    setCharaState('normal');
+    setActiveScore(PLAYER);
+    renderBoard();
+    updateScore();
+  }
+
+  // ==================================================
+  // オセロロジック
+  // ==================================================
+  function getFlips(b, row, col, player) {
+    if (b[row][col] !== 0) return [];
+    const opp = player === PLAYER ? CPU : PLAYER;
+    const flips = [];
+    for (const [dr, dc] of DIRS) {
+      const line = [];
+      let r = row+dr, c = col+dc;
+      while (r>=0&&r<8&&c>=0&&c<8&&b[r][c]===opp) {
+        line.push([r,c]); r+=dr; c+=dc;
+      }
+      if (line.length>0&&r>=0&&r<8&&c>=0&&c<8&&b[r][c]===player)
+        flips.push(...line);
+    }
+    return flips;
+  }
+
+  function getValidMoves(b, player) {
+    const moves = [];
+    for (let r=0;r<8;r++)
+      for (let c=0;c<8;c++)
+        if (getFlips(b,r,c,player).length>0) moves.push([r,c]);
+    return moves;
+  }
+
+  function applyMove(b, row, col, player) {
+    const flips = getFlips(b,row,col,player);
+    if (!flips.length) return [];
+    b[row][col] = player;
+    for (const [r,c] of flips) b[r][c] = player;
+    return flips;
+  }
+
+  function countPieces(b) {
+    let p=0, c=0;
+    for (let r=0;r<8;r++)
+      for (let c2=0;c2<8;c2++) {
+        if (b[r][c2]===PLAYER) p++;
+        else if (b[r][c2]===CPU) c++;
+      }
+    return {player:p, cpu:c};
+  }
+
+  // ==================================================
+  // AI：レベル別
+  // ==================================================
+  function cpuThink(b) {
+    const moves = getValidMoves(b, CPU);
+    if (!moves.length) return null;
+    switch(currentLevel) {
+      case 1: return aiSweet(b, moves);   // 甘口：ほぼランダム
+      case 2: return aiMedium(b, moves);  // 中辛：位置重視
+      case 3: return aiMinimax(b, moves, 3); // 辛口：ミニマックス
+    }
+  }
+
+  // 甘口：70%ランダム＋30%位置重視（わざと弱め）
+  function aiSweet(b, moves) {
+    if (Math.random() < 0.7) {
+      return moves[Math.floor(Math.random() * moves.length)];
+    }
+    return aiWeight(b, moves);
+  }
+
+  // ランダム（内部用）
+  function aiRandom(b, moves) {
+    return moves[Math.floor(Math.random() * moves.length)];
+  }
+
+  // レベル2：位置の重みだけ
+  function aiWeight(b, moves) {
+    let best=null, bestScore=-Infinity;
+    for (const [r,c] of moves) {
+      const score = WEIGHT[r][c];
+      if (score > bestScore) { bestScore=score; best=[r,c]; }
+    }
+    return best;
+  }
+
+  // レベル3：重み＋モビリティ（現在の中級）
+  function aiMedium(b, moves) {
+    let best=null, bestScore=-Infinity;
+    for (const [r,c] of moves) {
+      const nb = b.map(row=>[...row]);
+      applyMove(nb, r, c, CPU);
+      let score = WEIGHT[r][c];
+      const cnt = countPieces(nb);
+      score += (cnt.cpu - cnt.player) * 0.5;
+      score -= getValidMoves(nb, PLAYER).length * 3;
+      score += getValidMoves(nb, CPU).length * 1.5;
+      if (score > bestScore) { bestScore=score; best=[r,c]; }
+    }
+    return best;
+  }
+
+  // レベル4・5：ミニマックス（アルファベータ枝刈り）
+  function aiMinimax(b, moves, depth) {
+    let best=null, bestScore=-Infinity;
+    for (const [r,c] of moves) {
+      const nb = b.map(row=>[...row]);
+      applyMove(nb, r, c, CPU);
+      const score = minimax(nb, depth-1, -Infinity, Infinity, false);
+      if (score > bestScore) { bestScore=score; best=[r,c]; }
+    }
+    return best;
+  }
+
+  function evaluate(b) {
+    let score = 0;
+    const cnt = countPieces(b);
+    // 位置スコア
+    for (let r=0;r<8;r++)
+      for (let c=0;c<8;c++) {
+        if (b[r][c]===CPU)    score += WEIGHT[r][c];
+        else if (b[r][c]===PLAYER) score -= WEIGHT[r][c];
+      }
+    // 駒数
+    score += (cnt.cpu - cnt.player) * 2;
+    // モビリティ
+    score += (getValidMoves(b,CPU).length - getValidMoves(b,PLAYER).length) * 5;
+    return score;
+  }
+
+  function minimax(b, depth, alpha, beta, isMaximizing) {
+    const cpuMoves    = getValidMoves(b, CPU);
+    const playerMoves = getValidMoves(b, PLAYER);
+    if (depth===0 || (cpuMoves.length===0 && playerMoves.length===0))
+      return evaluate(b);
+
+    if (isMaximizing) {
+      if (!cpuMoves.length) return minimax(b, depth-1, alpha, beta, false);
+      let val = -Infinity;
+      for (const [r,c] of cpuMoves) {
+        const nb = b.map(row=>[...row]);
+        applyMove(nb,r,c,CPU);
+        val = Math.max(val, minimax(nb, depth-1, alpha, beta, false));
+        alpha = Math.max(alpha, val);
+        if (beta <= alpha) break;
+      }
+      return val;
+    } else {
+      if (!playerMoves.length) return minimax(b, depth-1, alpha, beta, true);
+      let val = Infinity;
+      for (const [r,c] of playerMoves) {
+        const nb = b.map(row=>[...row]);
+        applyMove(nb,r,c,PLAYER);
+        val = Math.min(val, minimax(nb, depth-1, alpha, beta, true));
+        beta = Math.min(beta, val);
+        if (beta <= alpha) break;
+      }
+      return val;
+    }
+  }
+
+  // ==================================================
+  // プレイヤーがクリック
+  // ==================================================
+  async function onCellClick(row, col) {
+    if (isOver || isThinking || turn !== PLAYER) return;
+
+    // ブロックされたマスはクリック不可
+    if (blockedCells.some(b => b.r===row && b.c===col)) {
+      setSpeech('そこはじゃまするよ〜！🐾');
+      return;
+    }
+
+    const flips = getFlips(board, row, col, PLAYER);
+    if (!flips.length) return;
+
+    // 駒を置いたらブロック解除
+    removeBlock();
+
+    // プレイヤーの手を打つ
+    applyMove(board, row, col, PLAYER);
+    renderBoard(row, col, flips);
+    updateScore();
+    turn = CPU;
+    setActiveScore(CPU);
+
+    // ゲーム終了チェック
+    if (checkGameOver()) return;
+
+    // CPUターン
+    await cpuTurn();
+  }
+
+  // ==================================================
+  // ぽてぽてが寝ちゃう（約15%の確率）
+  // ==================================================
+  async function potepoteSleep() {
+    isThinking = true;
+
+    // ZZZを表示
+    setCharaState('sleeping');
+    const zzzCon = document.getElementById('zzz-container');
+    const zzzEls = ['z','z','z'].map(()=>{
+      const z = document.createElement('span');
+      z.className = 'zzz-float';
+      z.textContent = 'z';
+      zzzCon.appendChild(z);
+      return z;
+    });
+
+    const sleepMsgs = [
+      'zzz… すやすや💤',
+      'むにゃむにゃ… 💤',
+      'zzz… ぽてぽて、ねてる💤',
+      'すーすー… 💤',
+    ];
+    setSpeech(pickRandom(sleepMsgs));
+
+    // 8秒寝る
+    await wait(8000);
+
+    // ZZZ消す
+    zzzEls.forEach(z => z.remove());
+    document.getElementById('potepote-chara').classList.remove('sleeping');
+
+    // 目覚めセリフ
+    const wakeMsgs = [
+      'はっ！ごめん、ねちゃってた！😅',
+      'む…うとうとしてたよ💦',
+      'zzz…あ！ごめんごめん！',
+      'ふあ〜…さあ、やるよ！🐾',
+    ];
+    setSpeech(pickRandom(wakeMsgs));
+    setCharaState('normal');
+    await wait(700);
+    isThinking = false;
+  }
+
+  // ==================================================
+  // CPUのターン
+  // ==================================================
+  async function cpuTurn() {
+    const moves = getValidMoves(board, CPU);
+
+    if (!moves.length) {
+      // CPUパス
+      setSpeech(SPEECHES.noMove);
+      await wait(1200);
+      turn = PLAYER;
+      setActiveScore(PLAYER);
+      const playerMoves = getValidMoves(board, PLAYER);
+      if (!playerMoves.length) { endGame(); return; }
+      setSpeech(pickRandom(SPEECHES.playerTurn));
+      showValidMoves();
+      return;
+    }
+
+    // たまに寝ちゃう（約15%の確率）
+    if (Math.random() < 0.15) {
+      await potepoteSleep();
+    }
+
+    // 考え中
+    isThinking = true;
+    setCharaState('thinking');
+    setSpeechThinking();
+    await wait(900 + Math.random()*600);
+
+    // CPUが手を打つ
+    const [r,c] = cpuThink(board);
+    const flips = applyMove(board, r, c, CPU);
+    setCharaState('normal');
+    setSpeech(pickRandom(SPEECHES.afterMove));
+    renderBoard(r, c, flips);
+    updateScore();
+    isThinking = false;
+    turn = PLAYER;
+    setActiveScore(PLAYER);
+
+    if (checkGameOver()) return;
+
+    // プレイヤーパスチェック
+    const playerMoves = getValidMoves(board, PLAYER);
+    if (!playerMoves.length) {
+      setSpeech(SPEECHES.playerNoMove);
+      await wait(1400);
+      if (checkGameOver()) return;
+      await cpuTurn();
+      return;
+    }
+
+    // ぽてぽての状況コメント
+    const cnt = countPieces(board);
+    await wait(300);
+    if (cnt.cpu > cnt.player + 6)
+      setSpeech(pickRandom(SPEECHES.winning));
+    else if (cnt.cpu < cnt.player - 6)
+      setSpeech(pickRandom(SPEECHES.losing));
+    else
+      setSpeech(pickRandom(SPEECHES.playerTurn));
+
+    await tryStealPieces();
+    tryItazura();
+    showValidMoves();
+  }
+
+  // ==================================================
+  // ゲーム終了チェック
+  // ==================================================
+  function checkGameOver() {
+    const pm = getValidMoves(board, PLAYER);
+    const cm = getValidMoves(board, CPU);
+    if (pm.length===0 && cm.length===0) { endGame(); return true; }
+    // 全マス埋まった
+    let empty=0;
+    for(let r=0;r<8;r++) for(let c=0;c<8;c++) if(!board[r][c]) empty++;
+    if (empty===0) { endGame(); return true; }
+    return false;
+  }
+
+  function endGame() {
+    isOver = true;
+    const cnt = countPieces(board);
+    const go = document.getElementById('gameover');
+    const goTitle = document.getElementById('gameover-title');
+    const goScore = document.getElementById('gameover-score');
+    const goChara = document.getElementById('gameover-chara');
+
+    goScore.textContent = `あなた ${cnt.player} - ${cnt.cpu} ぽてぽて`;
+
+    if (cnt.player > cnt.cpu) {
+      goTitle.textContent = 'あなたの勝ち！🎉';
+      goChara.innerHTML = '<img src="pieces/chara_sad.png" alt="ぽてぽて（かなしい）">';
+      setSpeech(SPEECHES.gameoverLose);
+      setCharaState('sad');
+    } else if (cnt.cpu > cnt.player) {
+      goTitle.textContent = 'ぽてぽての勝ち！🎉';
+      goChara.innerHTML = '<img src="pieces/chara_happy.png" alt="ぽてぽて（うれしい）">';
+      setSpeech(SPEECHES.gameoverWin);
+      setCharaState('happy');
+    } else {
+      goTitle.textContent = 'ひきわけ！🌿';
+      goChara.innerHTML = '<img src="pieces/chara_normal.png" alt="ぽてぽて">';
+      setSpeech(SPEECHES.gameoverDraw);
+      setCharaState('normal');
+    }
+
+    setTimeout(()=> go.classList.add('show'), 800);
+  }
+
+  // ==================================================
+  // ボードの描画
+  // ==================================================
+  function renderBoard(placedRow=-1, placedCol=-1, flips=[]) {
+    const boardEl = document.getElementById('board');
+    boardEl.innerHTML = '';
+    const validMoves = (!isOver && turn===PLAYER && !isThinking)
+      ? getValidMoves(board, PLAYER) : [];
+    const validSet = new Set(validMoves.map(([r,c])=>`${r},${c}`));
+    const flipSet  = new Set(flips.map(([r,c])=>`${r},${c}`));
+
+    for (let r=0;r<8;r++) {
+      for (let c=0;c<8;c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+
+        // ブロックされたマスの処理
+        const isBlocked = blockedCells.some(b => b.r===r && b.c===c);
+        if (isBlocked) {
+          cell.classList.add('blocked');
+          const blockChara = document.createElement('div');
+          blockChara.className = 'block-chara';
+          const img = document.createElement('img');
+          img.src = 'pieces/walk.png';
+          img.alt = 'ぽてぽて';
+          blockChara.appendChild(img);
+          cell.appendChild(blockChara);
+        } else if (validSet.has(`${r},${c}`)) {
+          cell.classList.add('valid-move');
+        }
+
+        cell.addEventListener('click', ()=>onCellClick(r,c));
+
+        if (board[r][c]) {
+          const piece = document.createElement('div');
+          const isPlayer = board[r][c]===PLAYER;
+          piece.className = `piece ${isPlayer?'player-piece':'cpu-piece'}`;
+
+          if (r===placedRow && c===placedCol) piece.classList.add('placed');
+          else if (flipSet.has(`${r},${c}`)) piece.classList.add('flipped');
+
+          if (USE_IMAGES) {
+            const img = document.createElement('img');
+            img.src = isPlayer ? PIECE_IMAGES.player : PIECE_IMAGES.cpu;
+            img.alt = isPlayer ? 'あなた' : 'ぽてぽて';
+            piece.appendChild(img);
+          }
+
+          cell.appendChild(piece);
+        }
+        boardEl.appendChild(cell);
+      }
+    }
+  }
+
+  function showValidMoves() {
+    renderBoard();
+  }
+
+  // ==================================================
+  // スコア更新
+  // ==================================================
+  function updateScore() {
+    const cnt = countPieces(board);
+    document.getElementById('num-player').textContent = cnt.player;
+    document.getElementById('num-cpu').textContent    = cnt.cpu;
+  }
+
+  function setActiveScore(player) {
+    document.getElementById('score-player').classList.toggle('active', player===PLAYER);
+    document.getElementById('score-cpu').classList.toggle('active', player===CPU);
+  }
+
+  // ==================================================
+  // ぽてぽての表示制御
+  // ==================================================
+  function setSpeech(text) {
+    document.getElementById('potepote-speech').textContent = text;
+  }
+
+  function setSpeechThinking() {
+    const sp = document.getElementById('potepote-speech');
+    sp.innerHTML = pickRandom(SPEECHES.thinking) +
+      ' <span class="thinking-dots"></span>';
+  }
+
+  const CHARA_EMOJI = {
+    normal: '🐾', thinking: '🤔', happy: '🎉', sad: '😢', sleeping: '😴'
+  };
+
+  function setCharaState(state) {
+    const emoji = document.getElementById('potepote-emoji');
+    const img   = document.getElementById('potepote-img');
+    const chara = document.getElementById('potepote-chara');
+
+    if (USE_IMAGES) {
+      const key = `chara_${state}`;
+      img.src = PIECE_IMAGES[key] || PIECE_IMAGES.chara_normal;
+      img.style.display = 'block';
+      emoji.style.display = 'none';
+    } else {
+      emoji.textContent = CHARA_EMOJI[state] || '🐾';
+      emoji.style.display = 'inline';
+      img.style.display = 'none';
+    }
+
+    if (state==='happy') {
+      chara.classList.add('bounce');
+      chara.classList.remove('sleeping');
+    } else if (state==='sleeping') {
+      chara.classList.add('sleeping');
+      chara.classList.remove('bounce');
+    } else {
+      chara.classList.remove('bounce');
+      chara.classList.remove('sleeping');
+    }
+  }
+
+  // ==================================================
+  // ユーティリティ
+  // ==================================================
+  function wait(ms) { return new Promise(r=>setTimeout(r,ms)); }
+  function pickRandom(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+
+  // ==================================================
+  // ゲームスタート
+  // ==================================================
+  setLevel(1); // デフォルトは「甘口」
+</script>
+</body>
+</html>
