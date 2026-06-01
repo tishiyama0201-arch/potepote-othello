@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ぽてぽてオセロ</title>
+  <title>ぽてぽてリバーシ</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -410,6 +410,29 @@
       to   { transform: translateY(-4px) rotate(5deg); }
     }
 
+    /* ===== 駒を隠すオーバーレイ ===== */
+    .piece-hide {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      background: #4a7c3f; /* セルと同じ緑で駒を完全に隠す */
+    }
+    .piece-hide img {
+      width: 92%;
+      height: 92%;
+      object-fit: contain;
+      image-rendering: pixelated;
+      animation: hideAppear 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    @keyframes hideAppear {
+      from { transform: scale(0) rotate(-20deg); opacity: 0; }
+      to   { transform: scale(1) rotate(0deg);   opacity: 1; }
+    }
+
     /* ===== 駒を盗まれたアニメーション ===== */
     @keyframes stolenFlash {
       0%   { transform: scale(1)   rotate(0deg);   filter: brightness(1); }
@@ -468,7 +491,7 @@
 <div id="game">
 
   <!-- タイトル -->
-  <div id="title">🌿 ぽてぽてオセロ 🌿</div>
+  <div id="title">🌿 ぽてぽてリバーシ 🌿</div>
 
   <!-- イタズラ選択 -->
   <div id="itazura-select">
@@ -678,6 +701,21 @@
     await wait(200);
   }
 
+  // 駒を隠す（後半・10%の確率、4秒後に自動解除）
+  let hiddenMode = false;
+  async function tryHidePieces() {
+    if (!itazuraEnabled || isOver || hiddenMode) return;
+    const cnt = countPieces(board);
+    const total = cnt.player + cnt.cpu;
+    if (total <= 32) return; // 前半は発動しない
+    if (Math.random() >= 0.10) return;
+
+    hiddenMode = true;
+    setSpeech('あはは、みえなくしちゃえ〜🙈');
+    renderBoard();
+    // 駒を置くまで隠したまま（onCellClick内でhiddenMode=falseにする）
+  }
+
   // ==================================================
   // レベル設定
   // ==================================================
@@ -716,6 +754,7 @@
     turn = PLAYER;
     isOver = false;
     isThinking = false;
+    hiddenMode = false;
     document.getElementById('gameover').classList.remove('show');
     setSpeech('どこに置く？じっくり考えてね🌿');
     setCharaState('normal');
@@ -895,8 +934,9 @@
     const flips = getFlips(board, row, col, PLAYER);
     if (!flips.length) return;
 
-    // 駒を置いたらブロック解除
+    // 駒を置いたらブロック＆隠し解除
     removeBlock();
+    hiddenMode = false;
 
     // プレイヤーの手を打つ
     applyMove(board, row, col, PLAYER);
@@ -1021,6 +1061,7 @@
       setSpeech(pickRandom(SPEECHES.playerTurn));
 
     await tryStealPieces();
+    await tryHidePieces();
     tryItazura();
     showValidMoves();
   }
@@ -1118,6 +1159,17 @@
           }
 
           cell.appendChild(piece);
+
+          // 隠しモード中はセル全体を覆う（駒の丸形に関係なく完全に隠す）
+          if (hiddenMode) {
+            const hideEl = document.createElement('div');
+            hideEl.className = 'piece-hide';
+            const hideImg = document.createElement('img');
+            hideImg.src = 'pieces/kakusu.png';
+            hideImg.alt = 'かくれた';
+            hideEl.appendChild(hideImg);
+            cell.appendChild(hideEl);
+          }
         }
         boardEl.appendChild(cell);
       }
