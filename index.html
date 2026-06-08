@@ -276,9 +276,26 @@
       text-shadow: 0 2px 8px rgba(0,0,0,0.5);
     }
     #gameover-score {
-      font-size: 1rem;
+      font-size: 1.1rem;
+      color: #fff;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    #gameover-conditions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .condition-tag {
+      background: rgba(165,214,167,0.15);
+      border: 1px solid #A5D6A7;
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.8rem;
       color: #A5D6A7;
-      margin-bottom: 20px;
+      letter-spacing: 1px;
     }
     #retry-btn {
       background: linear-gradient(135deg, #A5D6A7, #4CAF50);
@@ -551,6 +568,7 @@
     <div id="gameover-chara">🐾</div>
     <div id="gameover-title">ゲームおわり！</div>
     <div id="gameover-score"></div>
+    <div id="gameover-conditions"></div>
     <button id="retry-btn" onclick="newGame()">もう一度あそぶ 🌿</button>
   </div>
 </div>
@@ -1088,7 +1106,16 @@
     const goScore = document.getElementById('gameover-score');
     const goChara = document.getElementById('gameover-chara');
 
-    goScore.textContent = `あなた ${cnt.player} - ${cnt.cpu} ぽてぽて`;
+    goScore.textContent = `あなた ${cnt.player} 対 ${cnt.cpu} ぽてぽて`;
+
+    // 条件タグ
+    const goCond = document.getElementById('gameover-conditions');
+    const levelData = LEVELS[currentLevel - 1];
+    const itazuraText = itazuraEnabled ? '🐾 イタズラあり' : '😇 イタズラなし';
+    goCond.innerHTML = `
+      <span class="condition-tag">${levelData.icon} ${levelData.name}</span>
+      <span class="condition-tag">${itazuraText}</span>
+    `;
 
     if (cnt.player > cnt.cpu) {
       goTitle.textContent = 'あなたの勝ち！🎉';
