@@ -521,6 +521,7 @@
     <button class="lv-btn" onclick="setLevel(1)"><span class="lv-icon">🍀</span>甘口</button>
     <button class="lv-btn" onclick="setLevel(2)"><span class="lv-icon">🌿</span>中辛</button>
     <button class="lv-btn" onclick="setLevel(3)"><span class="lv-icon">🌶️</span>辛口</button>
+    <button class="lv-btn" onclick="setLevel(4)"><span class="lv-icon">🔥</span>大辛</button>
   </div>
 
   <!-- ぽてぽてエリア -->
@@ -738,9 +739,10 @@
   // レベル設定
   // ==================================================
   const LEVELS = [
-    { lv:1, name:'甘口', icon:'🍀', speech:'えへへ、やさしくするね〜🍀'       },
-    { lv:2, name:'中辛', icon:'🌿', speech:'よろしくね！じっくり考えるよ🌿'   },
-    { lv:3, name:'辛口', icon:'🌶️', speech:'まけないぞ！かかってきて🌶️'       },
+    { lv:1, name:'甘口', icon:'🍀', speech:'えへへ、やさしくするね〜🍀'           },
+    { lv:2, name:'中辛', icon:'🌿', speech:'よろしくね！じっくり考えるよ🌿'       },
+    { lv:3, name:'辛口', icon:'🌶️', speech:'まけないぞ！かかってきて🌶️'           },
+    { lv:4, name:'大辛', icon:'🔥', speech:'ほんきでいくよ…まけないからね🔥'     },
   ];
   let currentLevel = 1;
 
@@ -833,9 +835,10 @@
     const moves = getValidMoves(b, CPU);
     if (!moves.length) return null;
     switch(currentLevel) {
-      case 1: return aiSweet(b, moves);   // 甘口：ほぼランダム
-      case 2: return aiMedium(b, moves);  // 中辛：位置重視
-      case 3: return aiMinimax(b, moves, 3); // 辛口：ミニマックス
+      case 1: return aiSweet(b, moves);        // 甘口：ほぼランダム
+      case 2: return aiMedium(b, moves);       // 中辛：位置重視
+      case 3: return aiMinimax(b, moves, 3);   // 辛口：3手先ミニマックス
+      case 4: return aiDaiKara(b, moves);      // 大辛：6手先＋強化評価
     }
   }
 
@@ -878,7 +881,112 @@
     return best;
   }
 
-  // レベル4・5：ミニマックス（アルファベータ枝刈り）
+  // 大辛：6手先ミニマックス＋強化評価関数＋終盤完全読み
+  function aiDaiKara(b, moves) {
+    // 空きマス数を数える
+    let empty = 0;
+    for (let r=0;r<8;r++) for (let c=0;c<8;c++) if (!b[r][c]) empty++;
+
+    // 終盤（空き12マス以下）は完全読み（exact counting）
+    const depth = empty <= 12 ? empty : 6;
+
+    let best = null, bestScore = -Infinity;
+    for (const [r,c] of moves) {
+      const nb = b.map(row=>[...row]);
+      applyMove(nb, r, c, CPU);
+      const score = minimaxStrong(nb, depth-1, -Infinity, Infinity, false);
+      if (score > bestScore) { bestScore=score; best=[r,c]; }
+    }
+    return best;
+  }
+
+  // 強化評価関数（大辛専用）
+  function evaluateStrong(b) {
+    const cnt = countPieces(b);
+    const total = cnt.player + cnt.cpu;
+
+    // 位置スコア（大辛用強化版：角をより重視）
+    const WEIGHT_STRONG = [
+      [500,-80, 30, 10, 10, 30,-80,500],
+      [-80,-120, -5, -5, -5, -5,-120,-80],
+      [ 30,  -5, 15,  3,  3, 15,  -5, 30],
+      [ 10,  -5,  3,  3,  3,  3,  -5, 10],
+      [ 10,  -5,  3,  3,  3,  3,  -5, 10],
+      [ 30,  -5, 15,  3,  3, 15,  -5, 30],
+      [-80,-120, -5, -5, -5, -5,-120,-80],
+      [500,-80, 30, 10, 10, 30,-80,500],
+    ];
+
+    let score = 0;
+
+    // 位置スコア
+    for (let r=0;r<8;r++)
+      for (let c=0;c<8;c++) {
+        if (b[r][c]===CPU)    score += WEIGHT_STRONG[r][c];
+        else if (b[r][c]===PLAYER) score -= WEIGHT_STRONG[r][c];
+      }
+
+    // 確定石スコア（角が取れたら周辺も安全）
+    const CORNERS = [[0,0],[0,7],[7,0],[7,7]];
+    let stableScore = 0;
+    for (const [cr,cc] of CORNERS) {
+      if (b[cr][cc] === CPU)    stableScore += 300;
+      else if (b[cr][cc] === PLAYER) stableScore -= 300;
+    }
+    score += stableScore;
+
+    // モビリティ（手の多さ）：中盤は特に重要
+    const cpuMoves    = getValidMoves(b, CPU).length;
+    const playerMoves = getValidMoves(b, PLAYER).length;
+    const mobility = cpuMoves + playerMoves > 0
+      ? (cpuMoves - playerMoves) / (cpuMoves + playerMoves) * 100
+      : 0;
+    score += mobility * 8;
+
+    // 終盤（残り20マス以下）は駒数を重視
+    if (total >= 44) {
+      score += (cnt.cpu - cnt.player) * 15;
+    } else {
+      // 序中盤は駒数はあまり重視しない
+      score += (cnt.cpu - cnt.player) * 1;
+    }
+
+    return score;
+  }
+
+  // 強化ミニマックス（大辛専用）
+  function minimaxStrong(b, depth, alpha, beta, isMaximizing) {
+    const cpuMoves    = getValidMoves(b, CPU);
+    const playerMoves = getValidMoves(b, PLAYER);
+    if (depth===0 || (cpuMoves.length===0 && playerMoves.length===0))
+      return evaluateStrong(b);
+
+    if (isMaximizing) {
+      if (!cpuMoves.length) return minimaxStrong(b, depth-1, alpha, beta, false);
+      let val = -Infinity;
+      for (const [r,c] of cpuMoves) {
+        const nb = b.map(row=>[...row]);
+        applyMove(nb, r, c, CPU);
+        val = Math.max(val, minimaxStrong(nb, depth-1, alpha, beta, false));
+        alpha = Math.max(alpha, val);
+        if (beta <= alpha) break;
+      }
+      return val;
+    } else {
+      if (!playerMoves.length) return minimaxStrong(b, depth-1, alpha, beta, true);
+      let val = Infinity;
+      for (const [r,c] of playerMoves) {
+        const nb = b.map(row=>[...row]);
+        applyMove(nb, r, c, PLAYER);
+        val = Math.min(val, minimaxStrong(nb, depth-1, alpha, beta, true));
+        beta = Math.min(beta, val);
+        if (beta <= alpha) break;
+      }
+      return val;
+    }
+  }
+
+  // 辛口：ミニマックス（アルファベータ枝刈り）
   function aiMinimax(b, moves, depth) {
     let best=null, bestScore=-Infinity;
     for (const [r,c] of moves) {
@@ -1120,12 +1228,12 @@
     if (cnt.player > cnt.cpu) {
       goTitle.textContent = 'あなたの勝ち！🎉';
       goChara.innerHTML = '<img src="pieces/chara_sad.png" alt="ぽてぽて（かなしい）">';
-      setSpeech(SPEECHES.gameoverLose);
+      setSpeech(currentLevel >= 4 ? 'う…よめなかった…くやしい🔥' : SPEECHES.gameoverLose);
       setCharaState('sad');
     } else if (cnt.cpu > cnt.player) {
       goTitle.textContent = 'ぽてぽての勝ち！🎉';
       goChara.innerHTML = '<img src="pieces/chara_happy.png" alt="ぽてぽて（うれしい）">';
-      setSpeech(SPEECHES.gameoverWin);
+      setSpeech(currentLevel >= 4 ? 'ふふふ…ぜんぶよめてたよ🔥' : SPEECHES.gameoverWin);
       setCharaState('happy');
     } else {
       goTitle.textContent = 'ひきわけ！🌿';
